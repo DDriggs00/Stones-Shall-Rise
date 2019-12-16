@@ -64,7 +64,7 @@ public class MenuScreen implements Screen {
     @Override
     public void render(float delta) {
         if (Gdx.input.isKeyPressed(Input.Keys.SPACE))
-            game.setScreen( new LevelScreen(game, "level1") );
+            game.setScreen( new LevelScreen(game, "intro") );
 
         game.batch.setProjectionMatrix(menuStage.getCamera().combined);
         menuStage.draw();

@@ -22,6 +22,9 @@ public class WorldContactListener implements ContactListener {
         if (object != null && BaseItem.class.isAssignableFrom(object.getClass())) {
             ((BaseItem)object).onContact();
         }
+        if (object != null && PhysicsActor.class.isAssignableFrom(object.getClass())) {
+            ((PhysicsActor)object).onContact();
+        }
     }
 
     @Override

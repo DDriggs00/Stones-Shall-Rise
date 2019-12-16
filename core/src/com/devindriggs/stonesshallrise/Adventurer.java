@@ -5,6 +5,7 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
+import com.badlogic.gdx.utils.Array;
 
 public class Adventurer extends PhysicsActor {
 
@@ -17,14 +18,15 @@ public class Adventurer extends PhysicsActor {
     public Adventurer(UI ui, World world, int locationX, int locationY) {
         super(world, "player/adventurer-v1.5-Sheet.png");
         short collisionBits = MainGame.COLLISION_BIT_DEFAULT | MainGame.COLLISION_BIT_ENEMY | MainGame.COLLISION_BIT_POWERUP | MainGame.COLLISION_BIT_COIN | MainGame.COLLISION_BIT_TERRAIN;
-        super.createPhysicsBody(.95f, 1.85f, locationX, locationY, "Adventurer", MainGame.COLLISION_BIT_PLAYER, collisionBits);
-        super.createIdleSprite(0, 0, 50, 37, 1, 0.25f);
-        super.createWalkSprite(50, 37, 50, 37, 6, 0.25f);
-        super.createRunSprite(50, 37, 50, 37, 6, 0.15f);
-        super.createJumpSprite(50, 2*37, 50, 37, 3, 0.15f);
-        super.createFallSprite(50, 3*37, 50, 37, 2, 0.15f);
-        super.createAtkSprite(0, 6*37, 50, 37, 7, 0.08f);
-        super.createDieSprite(0, 9*37, 50, 37, 4, 0.25f);
+        createPhysicsBody(.95f, 1.85f, locationX, locationY, "Adventurer", MainGame.COLLISION_BIT_PLAYER, collisionBits);
+        textureOffsetY = .1f;
+        createIdleSprite(0, 0, 50, 37, 1, 0.25f);
+        createWalkSprite(50, 37, 50, 37, 6, 0.25f);
+        createRunSprite(50, 37, 50, 37, 6, 0.15f);
+        createJumpSprite(50, 2*37, 50, 37, 3, 0.15f);
+        createFallSprite(50, 3*37, 50, 37, 2, 0.15f);
+        createAtkSprite(0, 6*37, 50, 37, 7, 0.08f);
+        createDieSprite(0, 9*37, 50, 37, 4, 0.25f);
 
         this.ui = ui;
     }
@@ -94,10 +96,33 @@ public class Adventurer extends PhysicsActor {
         ui.triggerLose();
     }
 
+    @Override
+    public void onContact() {}
+
     private void attack() {
         if (currentState != state.attacking) {
             attackTimeRemain = atkTime;
             currentState = state.attacking;
+
+            Array<Body> bodies = new Array<Body>();
+            world.getBodies(bodies);
+            if (bodies.size == 0) {
+                return;
+            }
+
+            for(Body b: bodies) {
+                Vector2 v = b.getPosition();
+                if (b.getFixtureList() == null || b.getFixtureList().size == 0) return;
+                Object obj = b.getFixtureList().first().getUserData();
+
+                // TODO better math here
+                if(Math.abs(v.x - body.getPosition().x) < 3 && Math.abs(v.y - body.getPosition().y) < 3 ) {
+                    if (obj != null && PhysicsActor.class.isAssignableFrom(obj.getClass())) {
+                        ((PhysicsActor)obj).kill();
+                    }
+                }
+            }
+
         }
     }
 
@@ -130,7 +155,7 @@ public class Adventurer extends PhysicsActor {
 
     // Physics constructor
     @Override
-    void createPhysicsBody(float width, float height, float posX, float posY, String name, short categoryBits, short collisionBits) {
+    void createPhysicsBody(float width, float height, float posX, float posY, Object userData, short categoryBits, short collisionBits) {
         BodyDef bd = new BodyDef();
         bd.position.set(posX, posY);
         bd.type = BodyDef.BodyType.DynamicBody;
@@ -142,7 +167,7 @@ public class Adventurer extends PhysicsActor {
         fd.shape = r;
         fd.filter.categoryBits = categoryBits;
         fd.filter.maskBits = collisionBits;
-        body.createFixture(fd).setUserData(name);
+        body.createFixture(fd).setUserData(userData);
 
         EdgeShape wpn = new EdgeShape();
         wpn.set(new Vector2(-5 / 16f, 5 / 16f), new Vector2(5 / 16f, -5 / 16f));

@@ -78,7 +78,7 @@ public class LevelScreen implements Screen
         player = new Adventurer(ui, world, 1, 1);
 
         // Initialize enemies
-        golem = new Golem(world, 9, 5);
+        golem = new Golem(world, 9, 5, player);
 
         // DEBUG RENDERER
         testRender = new Box2DDebugRenderer();
@@ -119,6 +119,7 @@ public class LevelScreen implements Screen
 
         // Render actors
         player.draw(game.batch);    // player
+        golem.draw(game.batch);
 
         game.batch.end();
 
@@ -138,6 +139,7 @@ public class LevelScreen implements Screen
 
         // Update all actors
         player.update(delta);
+        golem.update(delta);
         ui.update(delta);
 
         if (player.body.getPosition().x < MainGame.SCREEN_WIDTH / 2f / MainGame.PIXELS_PER_METER) {

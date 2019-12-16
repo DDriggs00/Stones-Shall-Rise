@@ -20,6 +20,9 @@ public abstract class PhysicsActor extends Sprite {
     protected World world;
     Body body;
 
+    protected float textureOffsetX = 0;
+    protected float textureOffsetY = 0;
+
     private Animation<TextureRegion> idleAnimation;
     private Animation<TextureRegion> walkAnimation;
     private Animation<TextureRegion> runAnimation;
@@ -39,6 +42,8 @@ public abstract class PhysicsActor extends Sprite {
 
     protected boolean dead = false;
 
+    protected Fixture fixture;
+
     // main constructor
     public PhysicsActor(World world, String textureFile) {
         this.world = world;
@@ -47,7 +52,7 @@ public abstract class PhysicsActor extends Sprite {
     }
 
     // Physics constructor
-    void createPhysicsBody(float width, float height, float posX, float posY, String name, short categoryBits, short collisionBits) {
+    void createPhysicsBody(float width, float height, float posX, float posY, Object userData, short categoryBits, short collisionBits) {
         BodyDef bd = new BodyDef();
         bd.position.set(posX, posY);
         bd.type = BodyDef.BodyType.DynamicBody;
@@ -59,7 +64,7 @@ public abstract class PhysicsActor extends Sprite {
         fd.shape = r;
         fd.filter.categoryBits = categoryBits;
         fd.filter.maskBits = collisionBits;
-        body.createFixture(fd).setUserData(name);
+        body.createFixture(fd).setUserData(userData);
     }
 
     // Sprite generators
@@ -105,7 +110,7 @@ public abstract class PhysicsActor extends Sprite {
 
 
         setBounds(0, 0, getRegionWidth() / MainGame.PIXELS_PER_METER, getRegionHeight() / MainGame.PIXELS_PER_METER);
-        setPosition(body.getPosition().x - getWidth() / 2, body.getPosition().y - getHeight() / 2);
+        setPosition(body.getPosition().x - getWidth() / 2 + textureOffsetX, body.getPosition().y - getHeight() / 2 + textureOffsetY);
 
         if (currentState != lastState) {
             stateTime = 0;
@@ -182,6 +187,8 @@ public abstract class PhysicsActor extends Sprite {
     }
 
     protected abstract void kill();
+
+    public abstract void onContact();
 
     // Internal Helper functions
     private Animation<TextureRegion> generateAnimation(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {
