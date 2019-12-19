@@ -1,11 +1,14 @@
 package com.devindriggs.stonesshallrise;
 
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.physics.box2d.World;
 
 public class Checkpoint extends BaseItem {
 
+    private boolean used = false;
     private LevelScreen levelScreen;
 
     Checkpoint(World world1, TiledMap tiledMap, Rectangle rectangle1, LevelScreen levelScreen) {
@@ -18,6 +21,11 @@ public class Checkpoint extends BaseItem {
 
     @Override
     public void onContact() {
-        levelScreen.setSpawn((int)this.fixture.getBody().getPosition().x, (int)this.fixture.getBody().getPosition().y);
+        if (!used) {
+            used = true;
+            levelScreen.setSpawn((int)this.fixture.getBody().getPosition().x, (int)this.fixture.getBody().getPosition().y);
+            Sound sound = Gdx.audio.newSound(Gdx.files.internal("sound/checkpoint.mp3"));
+            sound.play();
+        }
     }
 }
