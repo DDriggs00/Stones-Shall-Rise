@@ -7,16 +7,19 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.utils.Array;
 
+import java.io.IOException;
+
 public class Adventurer extends PhysicsActor {
 
     private float atkTime = .5f; // duration of attack
-    float attackTimeRemain = 0;
+    private float attackTimeRemain = 0;
     private boolean running = false;
 
     private UI ui;
+    private LevelScreen levelScreen;
 
-    public Adventurer(UI ui, World world, int locationX, int locationY) {
-        super(world, "player/adventurer-v1.5-Sheet.png");
+    Adventurer(UI ui, World world, int locationX, int locationY, LevelScreen levelScreen) {
+        super(world, "player/adventurer-v1.5-Sheet.png", 3);
         short collisionBits = MainGame.COLLISION_BIT_DEFAULT | MainGame.COLLISION_BIT_ENEMY | MainGame.COLLISION_BIT_POWERUP | MainGame.COLLISION_BIT_COIN | MainGame.COLLISION_BIT_TERRAIN;
         createPhysicsBody(.95f, 1.85f, locationX, locationY, "Adventurer", MainGame.COLLISION_BIT_PLAYER, collisionBits);
         textureOffsetY = .1f;
@@ -29,9 +32,10 @@ public class Adventurer extends PhysicsActor {
         createDieSprite(0, 9*37, 50, 37, 4, 0.25f);
 
         this.ui = ui;
+        this.levelScreen = levelScreen;
     }
 
-    public void update(float delta) {
+    public void update(float delta) throws IOException {
 
         setState(delta);
         if (!dead && isGrounded() && Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
@@ -81,8 +85,14 @@ public class Adventurer extends PhysicsActor {
         super.update(delta);
     }
 
+    protected void hurt() throws IOException {
+        super.hurt();
+        this.ui.setHealth(health);
+    }
+
     @Override
-    protected void kill() {
+    protected void kill() throws IOException {
+        if (dead) return;
         dead = true;
         Sound sound;
         if (body.getPosition().y < -1) {
@@ -93,36 +103,46 @@ public class Adventurer extends PhysicsActor {
         }
 
         sound.play();
-        ui.triggerLose();
+        levelScreen.triggerNextLevel(false);
     }
 
     @Override
     public void onContact() {}
 
-    private void attack() {
+    private void attack() throws IOException {
         if (currentState != state.attacking) {
             attackTimeRemain = atkTime;
             currentState = state.attacking;
 
-            Array<Body> bodies = new Array<Body>();
+            Array<Body> bodies = new Array<>();
             world.getBodies(bodies);
             if (bodies.size == 0) {
+                Sound sound = Gdx.audio.newSound(Gdx.files.internal("sound/swing1.mp3"));
+                sound.play();
                 return;
             }
-
+            boolean didHit = false;
             for(Body b: bodies) {
                 Vector2 v = b.getPosition();
                 if (b.getFixtureList() == null || b.getFixtureList().size == 0) return;
                 Object obj = b.getFixtureList().first().getUserData();
 
                 // TODO better math here
-                if(Math.abs(v.x - body.getPosition().x) < 3 && Math.abs(v.y - body.getPosition().y) < 3 ) {
+                if(Math.abs(v.x - body.getPosition().x) < 4 && Math.abs(v.y - body.getPosition().y) < 2 ) {
                     if (obj != null && PhysicsActor.class.isAssignableFrom(obj.getClass())) {
-                        ((PhysicsActor)obj).kill();
+                        didHit = true;
+                        ((PhysicsActor)obj).hurt();
+                        float xBoost;
+                        if (this.flipped) xBoost = -10;
+                        else xBoost = 10;
+                        ((PhysicsActor)obj).body.applyLinearImpulse(new Vector2(xBoost, .5f), body.getWorldCenter(), true);
                     }
                 }
             }
-
+            if (!didHit) {
+                Sound sound = Gdx.audio.newSound(Gdx.files.internal("sound/swing1.mp3"));
+                sound.play();
+            }
         }
     }
 

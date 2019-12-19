@@ -10,11 +10,13 @@ import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 
+import java.io.IOException;
+
 public class MenuScreen implements Screen {
 
-    MainGame game;
+    private MainGame game;
 
-    public Stage menuStage;
+    private Stage menuStage;
 
     private Image background;
     private Image title;
@@ -24,7 +26,7 @@ public class MenuScreen implements Screen {
 
     private Viewport viewport;
 
-    public MenuScreen(MainGame game) {
+    MenuScreen(MainGame game) {
         this.game = game;
         viewport = new FitViewport(720, 540, new OrthographicCamera());
         menuStage = new Stage(viewport, game.batch);
@@ -63,8 +65,13 @@ public class MenuScreen implements Screen {
 
     @Override
     public void render(float delta) {
-        if (Gdx.input.isKeyPressed(Input.Keys.SPACE))
-            game.setScreen( new LevelScreen(game, "intro") );
+        if (Gdx.input.isKeyPressed(Input.Keys.SPACE)) {
+            try {
+                game.setScreen( new LevelScreen(game, "intro") );
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
 
         game.batch.setProjectionMatrix(menuStage.getCamera().combined);
         menuStage.draw();

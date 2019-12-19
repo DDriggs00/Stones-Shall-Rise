@@ -8,20 +8,25 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.utils.Array;
 
+import java.io.IOException;
+
 public abstract class PhysicsActor extends Sprite {
 
     protected enum state {
-        walking, running, idle, attacking, jumping, falling, dead
+        walking, running, idle, attacking, jumping, falling, hurt, dead
     }
-    private float stateTime = 0;
-    protected state currentState = state.idle;
-    protected state lastState = state.idle;
 
-    protected World world;
+    int health;
+    private float hurtGraceTime = .5f;
+    private float stateTime = 0;
+    state currentState = state.idle;
+    private state lastState = state.idle;
+
+    World world;
     Body body;
 
-    protected float textureOffsetX = 0;
-    protected float textureOffsetY = 0;
+    private float textureOffsetX = 0;
+    float textureOffsetY = 0;
 
     private Animation<TextureRegion> idleAnimation;
     private Animation<TextureRegion> walkAnimation;
@@ -30,6 +35,7 @@ public abstract class PhysicsActor extends Sprite {
     private Animation<TextureRegion> jumpAnimation;
     private Animation<TextureRegion> fallAnimation;
     private Animation<TextureRegion> dieAnimation;
+    private Animation<TextureRegion> hurtAnimation;
     private boolean hasIdleAnim = false;
     private boolean hasWalkAnim = false;
     private boolean hasRunAnim = false;
@@ -37,10 +43,11 @@ public abstract class PhysicsActor extends Sprite {
     private boolean hasJumpAnim = false;
     private boolean hasFallAnim = false;
     private boolean hasDieAnim = false;
+    private boolean hasHurtAnim = false;
 
-    protected boolean flipped;
+    boolean flipped;
 
-    protected boolean dead = false;
+    boolean dead = false;
 
     protected Fixture fixture;
 
@@ -49,6 +56,14 @@ public abstract class PhysicsActor extends Sprite {
         this.world = world;
         Texture texture = new Texture(Gdx.files.internal(textureFile));
         setTexture(texture);
+        health = 1;
+    }
+    // main constructor
+    PhysicsActor(World world, String textureFile, int health) {
+        this.world = world;
+        Texture texture = new Texture(Gdx.files.internal(textureFile));
+        setTexture(texture);
+        this.health = health;
     }
 
     // Physics constructor
@@ -68,37 +83,41 @@ public abstract class PhysicsActor extends Sprite {
     }
 
     // Sprite generators
-    protected void createIdleSprite(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {
+    void createIdleSprite(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {
         idleAnimation = generateAnimation(startX, startY, sizeX, sizeY, frames, frameLength);
         hasIdleAnim = true;
     }
-    protected void createWalkSprite(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {
+    void createWalkSprite(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {
         walkAnimation = generateAnimation(startX, startY, sizeX, sizeY, frames, frameLength);
         hasWalkAnim = true;
     }
-    protected void createRunSprite(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {
+    void createRunSprite(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {
         runAnimation = generateAnimation(startX, startY, sizeX, sizeY, frames, frameLength);
         hasRunAnim = true;
     }
-    protected void createJumpSprite(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {
+    void createJumpSprite(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {
         jumpAnimation = generateAnimation(startX, startY, sizeX, sizeY, frames, frameLength);
         hasJumpAnim = true;
     }
-    protected void createFallSprite(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {
+    void createFallSprite(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {
         fallAnimation = generateAnimation(startX, startY, sizeX, sizeY, frames, frameLength);
         hasFallAnim = true;
     }
-    protected void createAtkSprite(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {
+    void createAtkSprite(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {
         attackAnimation = generateAnimation(startX, startY, sizeX, sizeY, frames, frameLength);
         hasAtkAnim = true;
     }
-    protected void createDieSprite(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {
+    void createDieSprite(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {
         dieAnimation = generateAnimation(startX, startY, sizeX, sizeY, frames, frameLength);
         hasDieAnim = true;
     }
+    void createHurtSprite(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {
+        hurtAnimation = generateAnimation(startX, startY, sizeX, sizeY, frames, frameLength);
+        hasHurtAnim = true;
+    }
 
     // Update physics and sprites
-    public void update(float delta) {
+    public void update(float delta) throws IOException {
         // Kill triggers for all entities
         if (!dead) {
             // prevent double killing
@@ -120,13 +139,20 @@ public abstract class PhysicsActor extends Sprite {
             stateTime += delta;
         }
 
+        if (currentState == state.hurt && stateTime >= hurtGraceTime) {
+            currentState = state.idle;
+        }
+
         TextureRegion t = getRegion();
 
+        assert t != null;
         if (flipped && !t.isFlipX()) {
             t.flip(true, false);
         }
-        else if (!flipped && t.isFlipX()) {
-            t.flip(true, false);
+        else {
+            if (!flipped && t.isFlipX()) {
+                t.flip(true, false);
+            }
         }
 
         setRegion(t);
@@ -155,25 +181,23 @@ public abstract class PhysicsActor extends Sprite {
             case dead:
                 if (!hasDieAnim) return null;
                 return dieAnimation.getKeyFrame(stateTime, false);
+            case hurt:
+                if (hasHurtAnim) return hurtAnimation.getKeyFrame(stateTime, false);
+                else return idleAnimation.getKeyFrame(stateTime, true);
             default:
                 return null;
         }
     }
 
     // determines whether actor is grounded
-    protected boolean isGrounded() {
+    boolean isGrounded() {
         // TODO allow for vertically moving platforms
-        if (body.getLinearVelocity().y == 0) {
-            return true;
-        }
-        else {
-            return false;
-        }
+        return body.getLinearVelocity().y == 0;
     }
 
     // determines whether actor is moving
     // returns -1 for left, 0 for not moving, and 1 for right
-    protected int isMoving() {
+    int isMoving() {
         // TODO allow for horizontally moving platforms
         if (body.getLinearVelocity().x == 0) {
             return 0;
@@ -186,9 +210,22 @@ public abstract class PhysicsActor extends Sprite {
         }
     }
 
-    protected abstract void kill();
+    protected void hurt() throws IOException {
 
-    public abstract void onContact();
+        if (currentState == state.hurt) {
+            return;
+        }
+        lastState = currentState;
+        currentState = state.hurt;
+        health--;
+        if (health <= 0) {
+            this.kill();
+        }
+    }
+
+    protected abstract void kill() throws IOException;
+
+    public abstract void onContact() throws IOException;
 
     // Internal Helper functions
     private Animation<TextureRegion> generateAnimation(int startX, int startY, int sizeX, int sizeY, int frames, float frameLength) {

@@ -1,7 +1,9 @@
 package com.devindriggs.stonesshallrise;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.maps.MapObject;
@@ -15,8 +17,15 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
+
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.logging.Level;
 
 public class LevelScreen implements Screen
 {
@@ -28,11 +37,10 @@ public class LevelScreen implements Screen
     // reference to user interface
     private UI ui;
 
-    int mapWidth;
-    int mapHeight;
+    private int mapWidth;
+    private int mapHeight;
 
     private TiledMap map;
-    private TmxMapLoader mapLoader;
     private OrthogonalTiledMapRenderer renderer;
 
     private OrthographicCamera camera;
@@ -41,13 +49,21 @@ public class LevelScreen implements Screen
     private World world;
 
     private Adventurer player;
-    private Golem golem;
+    private Array<Golem> golems;
 
     Music backgroundMusic;
 
-    private Box2DDebugRenderer testRender;
+    private int spawnX, spawnY;
 
-    public LevelScreen(MainGame game, String levelName) {
+    private boolean levelOver = false;
+    private boolean levelWon = false;
+
+//    private Box2DDebugRenderer testRender;
+
+    LevelScreen(MainGame game, String levelName) throws IOException {
+        this(game, levelName, 1, 1);
+    }
+    private LevelScreen(MainGame game, String levelName, int spawnX, int spawnY) throws IOException {
         // Initialize base game object
         this.game = game;
 
@@ -63,7 +79,7 @@ public class LevelScreen implements Screen
         camera.position.set(MainGame.SCREEN_WIDTH / 2f / MainGame.PIXELS_PER_METER, MainGame.SCREEN_HEIGHT / 2f / MainGame.PIXELS_PER_METER, 0);
 
         // Render map
-        mapLoader = new TmxMapLoader();
+        TmxMapLoader mapLoader = new TmxMapLoader();
         map = mapLoader.load("maps/" + levelName + ".tmx");
         renderer = new OrthogonalTiledMapRenderer(map, 1 / MainGame.PIXELS_PER_METER);
 
@@ -75,13 +91,24 @@ public class LevelScreen implements Screen
         world = new World(new Vector2(0, MainGame.g), true);
 
         // Initialize player
-        player = new Adventurer(ui, world, 1, 1);
+        this.spawnX = spawnX;
+        this.spawnY = spawnY;
+        player = new Adventurer(ui, world, spawnX, spawnY, this);
 
-        // Initialize enemies
-        golem = new Golem(world, 9, 5, player);
+        // Initialize enemies (read from CSV)
+        golems = new Array<>();
+        BufferedReader csvReader = new BufferedReader(new FileReader("maps/" + levelName + ".csv"));
+        String row;
+        while ((row = csvReader.readLine()) != null) {
+            String[] data = row.split(",");
+            if (Integer.parseInt(data[0]) > -1 && Integer.parseInt(data[1]) > -1) {
+                golems.add(new Golem(world, Integer.parseInt(data[0]), Integer.parseInt(data[1]), player));
+            }
+        }
+        csvReader.close();
 
         // DEBUG RENDERER
-        testRender = new Box2DDebugRenderer();
+//        testRender = new Box2DDebugRenderer();
 
         world.setContactListener(new WorldContactListener());
 
@@ -104,7 +131,11 @@ public class LevelScreen implements Screen
     @Override
     public void render(float delta) {
         // update physics
-        update(delta);
+        try {
+            update(delta);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         // Clear screen
         Gdx.gl.glClearColor(0,0,0,1);
@@ -112,14 +143,16 @@ public class LevelScreen implements Screen
 
         // Render map
         renderer.render();
-        testRender.render(world, camera.combined);
+//        testRender.render(world, camera.combined);
 
         game.batch.setProjectionMatrix(camera.combined);
         game.batch.begin();
 
         // Render actors
         player.draw(game.batch);    // player
-        golem.draw(game.batch);
+        for (Golem golem: golems) {
+            golem.draw(game.batch);
+        }
 
         game.batch.end();
 
@@ -129,17 +162,26 @@ public class LevelScreen implements Screen
 
     }
 
-    public void update(float delta) {
+    private void update(float delta) throws IOException {
 
         world.step(1/60f, 6, 2);
 
-        if (player.dead) {
-            backgroundMusic.stop();
+        if (levelOver && Gdx.input.isKeyPressed(Input.Keys.SPACE)) {
+            if (getNextLevel() != null) {
+                if (getNextLevel().equals(levelName)) {
+                    game.setScreen(new LevelScreen(game, getNextLevel(), spawnX, spawnY));
+                }
+                else {
+                    game.setScreen(new LevelScreen(game, getNextLevel()));
+                }
+            }
         }
 
         // Update all actors
         player.update(delta);
-        golem.update(delta);
+        for (Golem golem: golems) {
+            golem.update(delta);
+        }
         ui.update(delta);
 
         if (player.body.getPosition().x < MainGame.SCREEN_WIDTH / 2f / MainGame.PIXELS_PER_METER) {
@@ -190,7 +232,7 @@ public class LevelScreen implements Screen
 
     }
 
-    public void prepareMap() {
+    private void prepareMap() {
         BodyDef bodydef = new BodyDef();
         PolygonShape shape = new PolygonShape();
         FixtureDef fd = new FixtureDef();
@@ -227,13 +269,18 @@ public class LevelScreen implements Screen
             body.createFixture(fd);
         }
 
+        for(MapObject object : map.getLayers().get(3).getObjects().getByType(RectangleMapObject.class)){
+            // Checkpoints
+            new Checkpoint(world, map, ((RectangleMapObject) object).getRectangle(), this);
+        }
+
         for(MapObject object : map.getLayers().get(4).getObjects().getByType(RectangleMapObject.class)){
             // Smallest coins
             new Coin(ui, world, map, ((RectangleMapObject) object).getRectangle(), 5);
         }
 
         for(MapObject object : map.getLayers().get(5).getObjects().getByType(RectangleMapObject.class)){
-            // Smallest coins
+            // Small coins
             new Coin(ui, world, map, ((RectangleMapObject) object).getRectangle(), 25);
         }
 
@@ -243,7 +290,7 @@ public class LevelScreen implements Screen
         }
 
         for(MapObject object : map.getLayers().get(7).getObjects().getByType(RectangleMapObject.class)){
-            // coins
+            // big coins
             new Coin(ui, world, map, ((RectangleMapObject) object).getRectangle(), 1000);
         }
 
@@ -251,9 +298,53 @@ public class LevelScreen implements Screen
             new Spike(ui, world, map, ((PolygonMapObject) object).getPolygon(), player);
         }
         for(MapObject object : map.getLayers().get(9).getObjects().getByType(RectangleMapObject.class)){
-            new Chest(ui, world, map, ((RectangleMapObject) object).getRectangle());
+            new Chest(world, map, ((RectangleMapObject) object).getRectangle(), this);
         }
     }
 
+    private String getNextLevel() throws IOException {
+        if (!levelWon) {
+            return levelName;
+        }
+        String row;
+        BufferedReader levelListReader = new BufferedReader(new FileReader("maps/levels.csv"));
+        while ((row = levelListReader.readLine()) != null) {
+            if (row.equalsIgnoreCase(levelName)) {
+                String row2;
+                if ((row2 = levelListReader.readLine()) != null) {
+                    return row2;
+                }
+                else {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
 
+    void triggerNextLevel(boolean isWin) throws IOException {
+        levelOver = true;
+        levelWon = isWin;
+        backgroundMusic.stop();
+        if (!isWin) {
+            ui.triggerLose();
+        }
+        if (isWin) {
+            if (getNextLevel() == null) {
+                ui.triggerWin();
+                Sound sound = Gdx.audio.newSound(Gdx.files.internal("sound/nextLevel.mp3"));
+                sound.play();
+            }
+            else {
+                ui.triggerNextLevel();
+                Sound sound = Gdx.audio.newSound(Gdx.files.internal("sound/nextLevel.mp3"));
+                sound.play();
+            }
+        }
+    }
+
+    void setSpawn(int x, int y) {
+        spawnX = x;
+        spawnY = y;
+    }
 }

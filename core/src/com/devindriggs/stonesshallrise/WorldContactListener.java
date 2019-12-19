@@ -2,6 +2,8 @@ package com.devindriggs.stonesshallrise;
 
 import com.badlogic.gdx.physics.box2d.*;
 
+import java.io.IOException;
+
 public class WorldContactListener implements ContactListener {
     @Override
     public void beginContact(Contact contact) {
@@ -23,7 +25,11 @@ public class WorldContactListener implements ContactListener {
             ((BaseItem)object).onContact();
         }
         if (object != null && PhysicsActor.class.isAssignableFrom(object.getClass())) {
-            ((PhysicsActor)object).onContact();
+            try {
+                ((PhysicsActor)object).onContact();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 

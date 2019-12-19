@@ -10,11 +10,11 @@ public abstract class BaseItem {
     private World world;
     private TiledMap map;
     private Body body;
-    protected Fixture fixture;
+    Fixture fixture;
     private Rectangle rectangle;
     private Polygon polygon;
 
-    public BaseItem(World world1, TiledMap tiledMap, Rectangle rectangle1, short type) {
+    BaseItem(World world1, TiledMap tiledMap, Rectangle rectangle1, short type) {
         world = world1;
         map = tiledMap;
         rectangle = rectangle1;
@@ -35,7 +35,7 @@ public abstract class BaseItem {
         fixtureDef.filter.maskBits = MainGame.COLLISION_BIT_PLAYER | MainGame.COLLISION_BIT_TERRAIN | MainGame.COLLISION_BIT_DEFAULT;
         fixture = body.createFixture(fixtureDef);
     }
-    public BaseItem(World world1, TiledMap tiledMap, Polygon polygon, short type) {
+    BaseItem(World world1, TiledMap tiledMap, Polygon polygon, short type) {
         world = world1;
         map = tiledMap;
         this.polygon = polygon;
@@ -63,13 +63,16 @@ public abstract class BaseItem {
 
     public abstract void onContact();
 
-    protected void destroy() {
+    void destroy() {
         Filter filter = new Filter();
         filter.categoryBits = MainGame.COLLISION_BIT_REMOVED;
         fixture.setFilterData(filter);
 
         TiledMapTileLayer layer = (TiledMapTileLayer)(map.getLayers().get(1));
         TiledMapTileLayer.Cell cell = layer.getCell((int)body.getPosition().x, (int)body.getPosition().y);
-        cell.setTile(null);
+        try {
+            cell.setTile(null);
+        }
+        catch (java.lang.NullPointerException ignored) {}
     }
 }
